@@ -2,5 +2,6 @@
 name = "any_of"
 version = "0.1.0"
 authors = ["jprekz <jprekz@users.noreply.github.com>"]
+license = "Unlicense"
 
 [dependencies]
