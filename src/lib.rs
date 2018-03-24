@@ -1,5 +1,5 @@
 use std::any::TypeId;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::fmt;
 
 pub struct AnyOf<T: 'static + ?Sized> {
@@ -42,6 +42,11 @@ impl<T: 'static + ?Sized> Deref for AnyOf<T> {
         &self.value
     }
 }
+impl<T: 'static + ?Sized> DerefMut for AnyOf<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+}
 impl<T: 'static + ?Sized + fmt::Debug> fmt::Debug for AnyOf<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "AnyOf({:?})", &self.value)
@@ -53,31 +58,38 @@ mod tests {
     use super::*;
 
     trait MyTrait: fmt::Debug {
-        fn hoge(&self) -> i32;
+        fn get(&self) -> i32;
+        fn set(&mut self, v: i32);
     }
     #[derive(Debug, PartialEq, Clone)]
     struct MyStruct1(i32);
     impl MyTrait for MyStruct1 {
-        fn hoge(&self) -> i32 {
+        fn get(&self) -> i32 {
             self.0
+        }
+        fn set(&mut self, v: i32) {
+            self.0 = v
         }
     }
     #[derive(Debug, PartialEq)]
     struct MyStruct2(i32);
     impl MyTrait for MyStruct2 {
-        fn hoge(&self) -> i32 {
+        fn get(&self) -> i32 {
             self.0 * 2
+        }
+        fn set(&mut self, v: i32) {
+            self.0 = v
         }
     }
 
     #[test]
     fn test_ref() {
         let anyof: &AnyOf<MyTrait> = &AnyOf::new(MyStruct1(1i32));
-        assert_eq!(anyof.hoge(), 1i32);
+        assert_eq!(anyof.get(), 1i32);
         assert_eq!(anyof.downcast_ref::<MyStruct1>(), Some(&MyStruct1(1i32)));
         assert_eq!(anyof.downcast_ref::<MyStruct2>(), None);
         let anyof: &AnyOf<MyTrait> = &AnyOf::new(MyStruct2(1i32));
-        assert_eq!(anyof.hoge(), 2i32);
+        assert_eq!(anyof.get(), 2i32);
         assert_eq!(anyof.downcast_ref::<MyStruct1>(), None);
         assert_eq!(anyof.downcast_ref::<MyStruct2>(), Some(&MyStruct2(1i32)));
     }
@@ -85,12 +97,48 @@ mod tests {
     #[test]
     fn test_box() {
         let anyof: Box<AnyOf<MyTrait>> = Box::new(AnyOf::new(MyStruct1(1i32)));
-        assert_eq!(anyof.hoge(), 1i32);
+        assert_eq!(anyof.get(), 1i32);
         assert_eq!(anyof.downcast_ref::<MyStruct1>(), Some(&MyStruct1(1i32)));
         assert_eq!(anyof.downcast_ref::<MyStruct2>(), None);
         let anyof: Box<AnyOf<MyTrait>> = Box::new(AnyOf::new(MyStruct2(1i32)));
-        assert_eq!(anyof.hoge(), 2i32);
+        assert_eq!(anyof.get(), 2i32);
         assert_eq!(anyof.downcast_ref::<MyStruct1>(), None);
         assert_eq!(anyof.downcast_ref::<MyStruct2>(), Some(&MyStruct2(1i32)));
+    }
+
+    #[test]
+    fn test_ref_mut() {
+        let anyof: &mut AnyOf<MyTrait> = &mut AnyOf::new(MyStruct1(0i32));
+        anyof.set(1i32);
+        assert_eq!(anyof.get(), 1i32);
+        assert_eq!(anyof.downcast_ref::<MyStruct1>(), Some(&MyStruct1(1i32)));
+        assert_eq!(anyof.downcast_ref::<MyStruct2>(), None);
+        assert_eq!(anyof.downcast_mut::<MyStruct1>(), Some(&mut MyStruct1(1i32)));
+        assert_eq!(anyof.downcast_mut::<MyStruct2>(), None);
+        let anyof: &mut AnyOf<MyTrait> = &mut AnyOf::new(MyStruct2(0i32));
+        anyof.set(1i32);
+        assert_eq!(anyof.get(), 2i32);
+        assert_eq!(anyof.downcast_ref::<MyStruct1>(), None);
+        assert_eq!(anyof.downcast_ref::<MyStruct2>(), Some(&MyStruct2(1i32)));
+        assert_eq!(anyof.downcast_mut::<MyStruct1>(), None);
+        assert_eq!(anyof.downcast_mut::<MyStruct2>(), Some(&mut MyStruct2(1i32)));
+    }
+
+    #[test]
+    fn test_box_mut() {
+        let mut anyof: Box<AnyOf<MyTrait>> = Box::new(AnyOf::new(MyStruct1(0i32)));
+        anyof.set(1i32);
+        assert_eq!(anyof.get(), 1i32);
+        assert_eq!(anyof.downcast_ref::<MyStruct1>(), Some(&MyStruct1(1i32)));
+        assert_eq!(anyof.downcast_ref::<MyStruct2>(), None);
+        assert_eq!(anyof.downcast_mut::<MyStruct1>(), Some(&mut MyStruct1(1i32)));
+        assert_eq!(anyof.downcast_mut::<MyStruct2>(), None);
+        let mut anyof: Box<AnyOf<MyTrait>> = Box::new(AnyOf::new(MyStruct2(0i32)));
+        anyof.set(1i32);
+        assert_eq!(anyof.get(), 2i32);
+        assert_eq!(anyof.downcast_ref::<MyStruct1>(), None);
+        assert_eq!(anyof.downcast_ref::<MyStruct2>(), Some(&MyStruct2(1i32)));
+        assert_eq!(anyof.downcast_mut::<MyStruct1>(), None);
+        assert_eq!(anyof.downcast_mut::<MyStruct2>(), Some(&mut MyStruct2(1i32)));
     }
 }
